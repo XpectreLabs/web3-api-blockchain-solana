@@ -13,6 +13,8 @@ router.get('/', (req, res) => {
       balance: 'GET /wallet/:address/balance',
       transactions: 'GET /wallet/:address/transactions',
       transaction: 'GET /wallet/transaction/:signature',
+      transactionList: 'GET /transactions?wallet=&type=&limit=&offset=&sortBy=&sortOrder=',
+      transactionDetail: 'GET /transactions/:signature',
     },
   });
 });

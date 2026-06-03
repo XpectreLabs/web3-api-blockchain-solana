@@ -6,6 +6,12 @@ node_modules/
 .env.local
 .env.production
 
+# Wallets y claves
+generate-wallet.js
+*.json.key
+wallet-*.json
+skills.md
+
 # Logs
 logs/
 *.log

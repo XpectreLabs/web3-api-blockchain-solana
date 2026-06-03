@@ -79,7 +79,6 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Solana Blockchain API - Funcionando correctamente',
     version: '1.0.0',
-    environment: config.server.env,
     timestamp: new Date().toISOString(),
   });
 });
@@ -91,6 +90,10 @@ app.use('/api', routes);
 const walletRoutes = require('./src/routes/walletRoutes');
 app.use('/wallet', walletRoutes);
 
+// ── 11c. Rutas de transacciones (US-E3) ───────────────────────
+const transactionRoutes = require('./src/routes/transactionRoutes');
+app.use('/transactions', transactionRoutes);
+
 // ── 12. Manejo de errores (SIEMPRE al final) ──────────────────
 // 12a. Captura rutas no encontradas -> 404
 app.use(notFoundHandler);
@@ -100,11 +103,12 @@ app.use(errorHandler);
 // ── 13. Iniciar servidor ──────────────────────────────────────
 const PORT = config.server.port;
 
-app.listen(PORT, () => {
-  logger.info('============================================');
-  logger.info(`Servidor iniciado en puerto ${PORT}`);
- 
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    logger.info('============================================');
+    logger.info(`Servidor iniciado en puerto ${PORT}`);
+  });
+}
 
 // ── 14. Manejo de errores no capturados ───────────────────────
 process.on('unhandledRejection', (reason, promise) => {

@@ -9,20 +9,6 @@ const router = Router();
 // GET /wallet/health
 router.get('/health', solanaController.healthCheck);
 
-// ── Detalle de transacción por firma ──────────────────────────
-// GET /wallet/transaction/:signature
-router.get(
-  '/transaction/:signature',
-  [
-    param('signature')
-      .isString()
-      .isLength({ min: 64 })
-      .withMessage('Firma de transacción inválida'),
-  ],
-  validateRequest,
-  solanaController.getTransaction
-);
-
 // ── Balance de wallet ─────────────────────────────────────────
 // GET /wallet/:address/balance
 router.get(

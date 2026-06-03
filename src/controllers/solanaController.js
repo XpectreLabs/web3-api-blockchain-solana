@@ -49,37 +49,6 @@ async function getBalance(req, res, next) {
   }
 }
 
-/**
- * GET /api/solana/transaction/:signature
- * Obtiene información de una transacción por su firma.
- */
-async function getTransaction(req, res, next) {
-  try {
-    const { signature } = req.params;
-    const transaction = await solanaService.getTransaction(signature);
-
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          message: 'Transacción no encontrada',
-          statusCode: 404,
-        },
-      });
-    }
-
-    res.json({
-      success: true,
-      data: transaction,
-    });
-  } catch (error) {
-    logger.error('Error al obtener transacción', {
-      signature: req.params.signature,
-      error: error.message,
-    });
-    next(error);
-  }
-}
 
 
 /**
@@ -113,6 +82,5 @@ async function getRecentTransactions(req, res, next) {
 module.exports = {
   healthCheck,
   getBalance,
-  getTransaction,
   getRecentTransactions,
 };
