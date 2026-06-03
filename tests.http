@@ -24,3 +24,18 @@ GET http://localhost:3000/wallet/6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu/tr
 
 ### 7. Detalle de una transacción
 GET http://localhost:3000/wallet/transaction/4aguv6rLQm3FTqR3RecYX8ovqXNQK3U5THUuwmkoMdWJR9pHtQSdgvz8trh5ngQhQcTLJApPjuuTBqzaLLySyjaU
+
+### 8. Detalle completo de transacción (US-E3)
+GET http://localhost:3000/transactions/4aguv6rLQm3FTqR3RecYX8ovqXNQK3U5THUuwmkoMdWJR9pHtQSdgvz8trh5ngQhQcTLJApPjuuTBqzaLLySyjaU
+
+### 9. Listar transacciones por wallet (US-E3)
+GET http://localhost:3000/transactions?wallet=6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu
+
+### 10. Filtrar por tipo transfer (puede tardar 5-15 s; espera la respuesta)
+GET http://localhost:3000/transactions?wallet=6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu&type=transfer
+
+### 11. Paginación y orden por timestamp (puede tardar 5-15 s)
+GET http://localhost:3000/transactions?wallet=6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu&limit=5&offset=0&sortBy=timestamp&sortOrder=desc
+
+### 12. Ordenar por monto (puede tardar 10-20 s; no ejecutes 9-12 seguido, devnet limita peticiones)
+GET http://localhost:3000/transactions?wallet=6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu&limit=5&sortBy=amount&sortOrder=desc
