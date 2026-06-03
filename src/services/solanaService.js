@@ -1,6 +1,14 @@
 const solanaWeb3 = require('@solana/web3.js');
 const { config } = require('../config/config');
 const logger = require('../utils/logger');
+const {
+  inferTransactionType,
+  extractAmountSOL,
+  sortTransactions,
+} = require('../utils/transactionUtils');
+
+const MAX_TRANSACTION_LIMIT = 50;
+const TYPE_FILTER_FETCH_MULTIPLIER = 3;
 
 // ── Mapeo de redes a URLs de cluster ──────────────────────────
 const CLUSTER_URLS = {
@@ -62,29 +70,96 @@ async function getBalance(publicKeyStr) {
   };
 }
 
+
+
+async function fetchRawTransaction(signature) {
+  return connection().getTransaction(signature, {
+    maxSupportedTransactionVersion: 0,
+  });
+}
+
+function getAccountKeysBase58(tx) {
+  if (tx.transaction.message.getAccountKeys) {
+    return tx.transaction.message.getAccountKeys().staticAccountKeys.map((key) => key.toBase58());
+  }
+  return tx.transaction.message.accountKeys.map((key) => key.toBase58());
+}
+
+function mapTransactionSummary(signature, tx, walletAddress) {
+  const fee = tx.meta?.fee ?? 0;
+
+  return {
+    signature,
+    slot: tx.slot,
+    blockTime: tx.blockTime,
+    blockTimeISO: tx.blockTime ? new Date(tx.blockTime * 1000).toISOString() : null,
+    fee,
+    feeSOL: fee / solanaWeb3.LAMPORTS_PER_SOL,
+    status: tx.meta?.err ? 'failed' : 'success',
+    type: inferTransactionType(tx),
+    amountSOL: extractAmountSOL(tx, walletAddress),
+  };
+}
+
 /**
- * Obtiene la información de una transacción por su firma.
+ * Obtiene el detalle completo de una transacción por su firma.
  * @param {string} signature - Firma de la transacción en Base58
  * @returns {Promise<object|null>}
  */
-async function getTransaction(signature) {
-  const tx = await connection().getTransaction(signature, {
-    maxSupportedTransactionVersion: 0,
-  });
+async function getTransactionDetail(signature) {
+  const tx = await fetchRawTransaction(signature);
 
   if (!tx) {
     logger.warn(`Transacción no encontrada: ${signature}`);
     return null;
   }
 
-  logger.debug(`Transacción encontrada: ${signature}`);
+  const accountKeys = getAccountKeysBase58(tx);
+
+  const instructions = (
+    tx.transaction.message.compiledInstructions
+    || tx.transaction.message.instructions
+    || []
+  ).map((ix, index) => ({
+    index,
+    programIdIndex: ix.programIdIndex,
+    accounts: ix.accountKeyIndexes || ix.accounts,
+    dataLength: ix.data?.length ?? 0,
+  }));
+
+  const fee = tx.meta?.fee ?? 0;
+
+  logger.debug(`Detalle de transacción obtenido: ${signature}`);
+
   return {
     signature,
     slot: tx.slot,
     blockTime: tx.blockTime,
-    fee: tx.meta?.fee,
+    blockTimeISO: tx.blockTime ? new Date(tx.blockTime * 1000).toISOString() : null,
+    fee,
+    feeSOL: fee / solanaWeb3.LAMPORTS_PER_SOL,
     status: tx.meta?.err ? 'failed' : 'success',
-    meta: tx.meta,
+    accounts: accountKeys,
+    instructions,
+    balanceChanges: accountKeys.map((address, index) => {
+      const preBalance = tx.meta?.preBalances?.[index] ?? 0;
+      const postBalance = tx.meta?.postBalances?.[index] ?? 0;
+      const changeLamports = postBalance - preBalance;
+
+      return {
+        address,
+        preBalance,
+        postBalance,
+        changeLamports,
+        changeSOL: changeLamports / solanaWeb3.LAMPORTS_PER_SOL,
+      };
+    }),
+    meta: {
+      err: tx.meta?.err ?? null,
+      logMessages: tx.meta?.logMessages ?? [],
+      innerInstructions: tx.meta?.innerInstructions ?? [],
+      computeUnitsConsumed: tx.meta?.computeUnitsConsumed ?? null,
+    },
   };
 }
 
@@ -116,33 +191,7 @@ async function getClusterInfo() {
   };
 }
 
-/**
- * Solicita un airdrop de SOL (solo funciona en devnet/testnet).
- * @param {string} publicKeyStr - Dirección pública en Base58
- * @param {number} amountSOL - Cantidad en SOL (máx 2 en devnet)
- * @returns {Promise<{ signature: string, address: string, amountSOL: number }>}
- */
-async function requestAirdrop(publicKeyStr, amountSOL = 1) {
-  if (config.solana.network === 'mainnet-beta') {
-    throw new Error('Airdrop no disponible en mainnet');
-  }
 
-  const publicKey = new solanaWeb3.PublicKey(publicKeyStr);
-  const lamports = amountSOL * solanaWeb3.LAMPORTS_PER_SOL;
-
-  logger.info(`Solicitando airdrop de ${amountSOL} SOL a ${publicKeyStr}`);
-  const signature = await connection().requestAirdrop(publicKey, lamports);
-
-  // Esperar confirmación
-  await connection().confirmTransaction(signature, 'confirmed');
-  logger.info(`Airdrop confirmado: ${signature}`);
-
-  return {
-    signature,
-    address: publicKeyStr,
-    amountSOL,
-  };
-}
 
 /**
  * Obtiene las transacciones recientes de una dirección.
@@ -167,11 +216,84 @@ async function getRecentTransactions(publicKeyStr, limit = 10) {
   }));
 }
 
+/**
+ * Lista transacciones con filtrado, paginación y ordenamiento.
+ */
+async function queryTransactions({
+  wallet,
+  type,
+  limit = 10,
+  offset = 0,
+  sortBy = 'timestamp',
+  sortOrder = 'desc',
+}) {
+  const publicKey = new solanaWeb3.PublicKey(wallet);
+  const safeLimit = Math.min(Math.max(Number(limit), 1), MAX_TRANSACTION_LIMIT);
+  const safeOffset = Math.max(Number(offset), 0);
+
+  const fetchCount = type
+    ? Math.min((safeLimit + safeOffset) * TYPE_FILTER_FETCH_MULTIPLIER, 100)
+    : safeLimit + safeOffset;
+
+  const signatures = await connection().getSignaturesForAddress(publicKey, {
+    limit: fetchCount,
+  });
+
+  const signatureList = signatures.map((sig) => sig.signature);
+  const rawTxs = signatureList.length > 0
+    ? await connection().getTransactions(signatureList, {
+      maxSupportedTransactionVersion: 0,
+    })
+    : [];
+
+  const transactions = [];
+
+  for (let i = 0; i < signatures.length; i += 1) {
+    const raw = rawTxs[i];
+    if (!raw) {
+      logger.warn(`No se pudo obtener transacción: ${signatures[i].signature}`);
+      continue;
+    }
+
+    const summary = mapTransactionSummary(signatures[i].signature, raw, wallet);
+
+    if (type && summary.type !== type) {
+      continue;
+    }
+
+    transactions.push(summary);
+  }
+
+  const sorted = sortTransactions(transactions, sortBy, sortOrder);
+  const paginated = sorted.slice(safeOffset, safeOffset + safeLimit);
+
+  logger.debug(
+    `queryTransactions wallet=${wallet} count=${paginated.length} type=${type || 'all'}`
+  );
+
+  return {
+    wallet,
+    pagination: {
+      limit: safeLimit,
+      offset: safeOffset,
+      count: paginated.length,
+      totalMatched: sorted.length,
+    },
+    filters: {
+      type: type || null,
+      sortBy,
+      sortOrder,
+    },
+    transactions: paginated,
+  };
+}
+
 module.exports = {
   connection,
   getBalance,
-  getTransaction,
+  getTransactionDetail,
+  queryTransactions,
   getClusterInfo,
-  requestAirdrop,
   getRecentTransactions,
+  MAX_TRANSACTION_LIMIT,
 };
