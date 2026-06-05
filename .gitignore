@@ -1,37 +1,46 @@
-# Dependencias
-node_modules/
-
-# Variables de entorno
-.env
-.env.local
-.env.production
+# compiled output
+/dist
+/node_modules
 
 # Logs
-logs/
+logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-
-notas.txt
-
-
-# Sistema operativo
+# OS
 .DS_Store
 Thumbs.db
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Tests
+/coverage
+/.nyc_output
 
-# Build
-dist/
-build/
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
 
-# Cobertura de tests
-coverage/
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 
-# Temporales
-tmp/
-temp/
+# Archivos de entorno y seguridad
+.env
+.env.test
+.env.production
+.env.local
+
+# Archivos y notas privadas (Solicitud específica)
+guia-privada-es.md
+notas.txt
+scratchpad*
