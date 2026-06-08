@@ -6,13 +6,19 @@ import {
   SolanaTransactionResponse,
 } from './transaction.utils';
 import { TransactionType } from '../constants/transaction.constants';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 describe('Transaction Utilities', () => {
-  const SYSTEM_PROGRAM_ID = SystemProgram.programId.toBase58();
+  const SYSTEM_PROGRAM_ID =
+    process.env.SYSTEM_PROGRAM_ID || SystemProgram.programId.toBase58();
   const COMPUTE_BUDGET_PROGRAM_ID =
+    process.env.COMPUTE_BUDGET_PROGRAM_ID ||
     'ComputeBudget111111111111111111111111111111';
-  // Split standard Token Program ID to avoid generic high entropy warnings
-  const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJb' + 'GKPFXCWuBvf9Ss623VQ5DA';
+  const TOKEN_PROGRAM_ID =
+    process.env.TOKEN_PROGRAM_ID ||
+    'TokenkegQfeZyiNwAJbGKPFXCWuBvf9Ss623VQ5DA';
 
   // Generate wallet addresses dynamically to avoid hardcoded high entropy strings
   const walletA = Keypair.generate().publicKey.toBase58();
