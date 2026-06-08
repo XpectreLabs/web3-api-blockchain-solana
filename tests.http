@@ -1,26 +1,35 @@
 ### ============================================
-### Solana Blockchain API — Pruebas
-### Usa la extensión "REST Client" para ejecutar
-### Click en "Send Request" arriba de cada bloque
+### NestJS Solana API Tests
 ### ============================================
 
-### 1. Estado del servidor
-GET http://localhost:3000/
+### 1. General Health Check
+GET http://127.0.0.1:3000/
 
-### 2. Listado de endpoints
-GET http://localhost:3000/api
+### 2. Solana Network Health Status
+GET http://127.0.0.1:3000/wallet/health
 
-### 3. Health check de Solana
-GET http://localhost:3000/wallet/health
+### 3. Check Wallet Balance (From .env TEST_WALLET_ADDRESS)
+GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/balance
 
-### 4. Balance de wallet
-GET http://localhost:3000/wallet/6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu/balance
+### 4. Fetch Recent Wallet Transactions
+GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/transactions?limit=5
 
-### 5. Transacciones de wallet
-GET http://localhost:3000/wallet/6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu/transactions
+### ============================================
+### US-E3 — Transactions Details
+### ============================================
 
-### 6. Transacciones con límite
-GET http://localhost:3000/wallet/6jHGrsG1HAiV7DpWFtzPoAYnSp4fb4t53MSFc5ykjHxu/transactions?limit=5
+### 5. Specific Transaction Detail (Invalid signature - should return 400/404 cleanly)
+GET http://127.0.0.1:3000/transactions/5oG4k6aJ4DYZJq1x5M5eX7d6Y5F2e9b8Z3c1A4f5E6d7
 
-### 7. Detalle de una transacción
-GET http://localhost:3000/wallet/transaction/4aguv6rLQm3FTqR3RecYX8ovqXNQK3U5THUuwmkoMdWJR9pHtQSdgvz8trh5ngQhQcTLJApPjuuTBqzaLLySyjaU
+### 6. Advanced Transactions List with Filters and Pagination
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=10&offset=0
+
+### ============================================
+### US-E4 — Token Metadata & Holders
+### ============================================
+
+### 7. SPL Token Information & Metadata (From .env TEST_TOKEN_MINT)
+GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}
+
+### 8. Top 20 Holders of SPL Token
+GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/holders
