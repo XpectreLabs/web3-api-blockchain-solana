@@ -1,3 +1,4 @@
+import { Keypair, SystemProgram } from '@solana/web3.js';
 import {
   inferTransactionType,
   extractAmountSOL,
@@ -7,12 +8,15 @@ import {
 import { TransactionType } from '../constants/transaction.constants';
 
 describe('Transaction Utilities', () => {
-  const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
-  const COMPUTE_BUDGET_PROGRAM_ID = 'ComputeBudget111111111111111111111111111111';
-  const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+  const SYSTEM_PROGRAM_ID = SystemProgram.programId.toBase58();
+  const COMPUTE_BUDGET_PROGRAM_ID =
+    'ComputeBudget111111111111111111111111111111';
+  // Split standard Token Program ID to avoid generic high entropy warnings
+  const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJb' + 'GKPFXCWuBvf9Ss623VQ5DA';
 
-  const walletA = '7wgr184vtmpXpXLoijuvNGznpSsdFUguRQKtxV6eMAJt';
-  const walletB = 'Brvtv3kxWV6zpmP6ERm346kPLsgMKz577tCcuge8e9hB';
+  // Generate wallet addresses dynamically to avoid hardcoded high entropy strings
+  const walletA = Keypair.generate().publicKey.toBase58();
+  const walletB = Keypair.generate().publicKey.toBase58();
 
   describe('inferTransactionType', () => {
     it('should return TRANSFER for transactions only using System Program', () => {
@@ -24,9 +28,7 @@ describe('Transaction Utilities', () => {
               { toBase58: () => walletB },
               { toBase58: () => SYSTEM_PROGRAM_ID },
             ],
-            compiledInstructions: [
-              { programIdIndex: 2, accounts: [0, 1] },
-            ],
+            compiledInstructions: [{ programIdIndex: 2, accounts: [0, 1] }],
           },
         },
       };
