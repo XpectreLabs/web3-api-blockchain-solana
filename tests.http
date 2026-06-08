@@ -22,7 +22,16 @@ GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/transactions?li
 GET http://127.0.0.1:3000/transactions/5oG4k6aJ4DYZJq1x5M5eX7d6Y5F2e9b8Z3c1A4f5E6d7
 
 ### 6. Advanced Transactions List with Filters and Pagination
-GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=10&offset=0
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&offset=0&sortBy=timestamp&sortOrder=desc
+
+### 6a. Filter by type (transfer)
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&type=transfer
+
+### 6b. Filter by type (instruction)
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&type=instruction
+
+### 6c. Sort by amount (ascending)
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&sortBy=amount&sortOrder=asc
 
 ### ============================================
 ### US-E4 — Token Metadata & Holders
