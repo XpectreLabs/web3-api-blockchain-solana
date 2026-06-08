@@ -16,7 +16,12 @@ export class NullToNotFoundInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     return next.handle().pipe(
       tap((data) => {
-        if (data === null || data === undefined) {
+        const isNullOrUndefined = (val: any) => val === null || val === undefined;
+
+        if (
+          isNullOrUndefined(data) ||
+          (data && typeof data === 'object' && 'data' in data && isNullOrUndefined(data.data))
+        ) {
           throw new NotFoundException('Requested resource was not found');
         }
       }),

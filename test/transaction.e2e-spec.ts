@@ -6,10 +6,18 @@ import { AppModule } from './../src/app.module';
 import { SolanaService } from './../src/solana/solana.service';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 import { NullToNotFoundInterceptor } from '../src/common/interceptors/null-to-not-found.interceptor';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 describe('TransactionController (e2e)', () => {
   let app: INestApplication<App>;
-  const testWallet = '7wgr184vtmpXpXLoijuvNGznpSsdFUguRQKtxV6eMAJt';
+  const testWallet = process.env.TEST_WALLET_ADDRESS;
+
+  if (!testWallet) {
+    throw new Error('TEST_WALLET_ADDRESS is not defined in environment variables');
+  }
+
   const sig1 = 'mockSignature11111111111111111111111111111111111111111111111111111';
   const sig2 = 'mockSignature22222222222222222222222222222222222222222222222222222';
 

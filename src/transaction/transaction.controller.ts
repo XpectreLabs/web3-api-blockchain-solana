@@ -3,7 +3,7 @@ import {
   Get,
   Param,
   Query,
-  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { SolanaService } from '../solana/solana.service';
 import { TransactionService } from './transaction.service';
@@ -18,9 +18,11 @@ export class TransactionController {
 
   @Get(':signature')
   async getTransactionDetail(@Param('signature') signature: string) {
+    if (!signature || signature.length < 64) {
+      throw new BadRequestException('Invalid transaction signature');
+    }
     const transaction =
       await this.solanaService.getTransactionDetail(signature);
-    if (!transaction) throw new NotFoundException('Transaction not found');
     return { success: true, data: transaction };
   }
 
