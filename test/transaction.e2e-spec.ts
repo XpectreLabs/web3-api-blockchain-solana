@@ -7,6 +7,7 @@ import { SolanaService } from './../src/solana/solana.service';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 import { NullToNotFoundInterceptor } from '../src/common/interceptors/null-to-not-found.interceptor';
 import * as dotenv from 'dotenv';
+import * as crypto from 'crypto';
 
 dotenv.config();
 
@@ -18,8 +19,9 @@ describe('TransactionController (e2e)', () => {
     throw new Error('TEST_WALLET_ADDRESS is not defined in environment variables');
   }
 
-  const sig1 = 'mockSignature11111111111111111111111111111111111111111111111111111';
-  const sig2 = 'mockSignature22222222222222222222222222222222222222222222222222222';
+  const sig1 = crypto.randomBytes(32).toString('hex');
+  const sig2 = crypto.randomBytes(32).toString('hex');
+  const nonExistentSig = crypto.randomBytes(32).toString('hex');
 
   const mockConnection = {
     getSignaturesForAddress: jest.fn().mockResolvedValue([
@@ -69,7 +71,7 @@ describe('TransactionController (e2e)', () => {
   const mockSolanaService = {
     getConnection: () => mockConnection,
     getTransactionDetail: jest.fn().mockImplementation((sig) => {
-      if (sig === '5oG4k6aJ4DYZJq1x5M5eX7d6Y5F2e9b8Z3c1A4f5E6d7a1b2c3d4e5f6g7h8i9j0') {
+      if (sig === nonExistentSig) {
         return null;
       }
       return {
@@ -210,7 +212,6 @@ describe('TransactionController (e2e)', () => {
       .get('/transactions/invalidSigShort')
       .expect(400);
 
-    const nonExistentSig = '5oG4k6aJ4DYZJq1x5M5eX7d6Y5F2e9b8Z3c1A4f5E6d7a1b2c3d4e5f6g7h8i9j0';
     await request(app.getHttpServer())
       .get(`/transactions/${nonExistentSig}`)
       .expect(404);
