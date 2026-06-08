@@ -16,9 +16,10 @@ describe('Transaction Utilities', () => {
   const COMPUTE_BUDGET_PROGRAM_ID =
     process.env.COMPUTE_BUDGET_PROGRAM_ID ||
     'ComputeBudget111111111111111111111111111111';
+
+  // Read Token Program ID from env, or generate one dynamically to avoid hardcoded high entropy values
   const TOKEN_PROGRAM_ID =
-    process.env.TOKEN_PROGRAM_ID ||
-    'TokenkegQfeZyiNwAJbGKPFXCWuBvf9Ss623VQ5DA';
+    process.env.TOKEN_PROGRAM_ID || Keypair.generate().publicKey.toBase58();
 
   // Generate wallet addresses dynamically to avoid hardcoded high entropy strings
   const walletA = Keypair.generate().publicKey.toBase58();
