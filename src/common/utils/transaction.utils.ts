@@ -2,9 +2,6 @@ import { SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TransactionType } from '../constants/transaction.constants';
 
 const SYSTEM_PROGRAM_ID = SystemProgram.programId.toBase58();
-const COMPUTE_BUDGET_PROGRAM_ID =
-  process.env.COMPUTE_BUDGET_PROGRAM_ID ||
-  'ComputeBudget111111111111111111111111111111';
 
 export interface CompiledInstruction {
   programIdIndex: number;
@@ -48,7 +45,9 @@ export interface SolanaTransactionResponse extends SortableTransaction {
   type?: TransactionType;
 }
 
-function getAccountKeys(tx: SolanaTransactionResponse): (SolanaAccountKey | string)[] {
+function getAccountKeys(
+  tx: SolanaTransactionResponse,
+): (SolanaAccountKey | string)[] {
   if (!tx?.transaction?.message) {
     return [];
   }
@@ -65,6 +64,7 @@ function getAccountKeys(tx: SolanaTransactionResponse): (SolanaAccountKey | stri
 export function inferTransactionType(
   tx: SolanaTransactionResponse,
 ): TransactionType {
+  const computeBudgetProgramId = process.env.COMPUTE_BUDGET_PROGRAM_ID || '';
   const accountKeys = getAccountKeys(tx);
   const message = tx?.transaction?.message;
   const instructions =
@@ -80,7 +80,7 @@ export function inferTransactionType(
     }
     const programId = typeof key === 'string' ? key : key.toBase58();
 
-    if (programId === COMPUTE_BUDGET_PROGRAM_ID) {
+    if (programId === computeBudgetProgramId) {
       continue;
     }
 

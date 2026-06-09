@@ -13,9 +13,7 @@ dotenv.config();
 describe('Transaction Utilities', () => {
   const SYSTEM_PROGRAM_ID =
     process.env.SYSTEM_PROGRAM_ID || SystemProgram.programId.toBase58();
-  const COMPUTE_BUDGET_PROGRAM_ID =
-    process.env.COMPUTE_BUDGET_PROGRAM_ID ||
-    'ComputeBudget111111111111111111111111111111';
+  const COMPUTE_BUDGET_PROGRAM_ID = process.env.COMPUTE_BUDGET_PROGRAM_ID || '';
 
   // Read Token Program ID from env, or generate one dynamically to avoid hardcoded high entropy values
   const TOKEN_PROGRAM_ID =
