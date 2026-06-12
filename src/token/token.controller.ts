@@ -1,21 +1,30 @@
-import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { TokenService } from './token.service';
+import { SolanaAddressPipe } from '../common/pipes/solana-address.pipe';
+import { QueryTransfersDto } from './dto/query-transfers.dto';
 
 @Controller('tokens')
 export class TokenController {
   constructor(private readonly tokenService: TokenService) {}
 
   @Get(':mint')
-  async getTokenInfo(@Param('mint') mint: string) {
+  async getTokenInfo(@Param('mint', SolanaAddressPipe) mint: string) {
     const data = await this.tokenService.getTokenInfo(mint);
-    if (!data) throw new NotFoundException('Token mint not found');
     return { success: true, data };
   }
 
   @Get(':mint/holders')
-  async getTokenHolders(@Param('mint') mint: string) {
+  async getTokenHolders(@Param('mint', SolanaAddressPipe) mint: string) {
     const data = await this.tokenService.getTokenHolders(mint);
-    if (!data) throw new NotFoundException('Token mint not found');
+    return { success: true, data };
+  }
+
+  @Get(':mint/transfers')
+  async getTokenTransfers(
+    @Param('mint', SolanaAddressPipe) mint: string,
+    @Query() query: QueryTransfersDto,
+  ) {
+    const data = await this.tokenService.getTokenTransfers(mint, query.limit);
     return { success: true, data };
   }
 }
