@@ -69,6 +69,12 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "moduleNameMapper": {
+      "^uuid$": "uuid"
+    },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(rpc-websockets|uuid)/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
