@@ -6,10 +6,15 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SolanaService } from '../solana/solana.service';
+import { WalletService } from './wallet.service';
+import { SolanaAddressPipe } from '../common/pipes/solana-address.pipe';
 
 @Controller('wallet')
 export class WalletController {
-  constructor(private readonly solanaService: SolanaService) {}
+  constructor(
+    private readonly solanaService: SolanaService,
+    private readonly walletService: WalletService,
+  ) {}
 
   @Get('health')
   async healthCheck() {
@@ -42,6 +47,18 @@ export class WalletController {
       success: true,
       data: { address, count: transactions.length, transactions },
     };
+  }
+
+  /**
+   * Returns a portfolio breakdown and analytics summary for the given wallet.
+   * Uses SolanaAddressPipe to validate the address before any RPC call is made.
+   */
+  @Get(':address/analytics')
+  async getWalletAnalytics(
+    @Param('address', SolanaAddressPipe) address: string,
+  ) {
+    const data = await this.walletService.getWalletAnalytics(address);
+    return { success: true, data };
   }
 
   private validateAddress(address: string) {
