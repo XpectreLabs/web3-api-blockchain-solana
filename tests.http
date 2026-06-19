@@ -22,7 +22,16 @@ GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/transactions?li
 GET http://127.0.0.1:3000/transactions/5oG4k6aJ4DYZJq1x5M5eX7d6Y5F2e9b8Z3c1A4f5E6d7
 
 ### 6. Advanced Transactions List with Filters and Pagination
-GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=10&offset=0
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&offset=0&sortBy=timestamp&sortOrder=desc
+
+### 6a. Filter by type (transfer)
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&type=transfer
+
+### 6b. Filter by type (instruction)
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&type=instruction
+
+### 6c. Sort by amount (ascending)
+GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&sortBy=amount&sortOrder=asc
 
 ### ============================================
 ### US-E4 — Token Metadata & Holders
@@ -31,5 +40,11 @@ GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&li
 ### 7. SPL Token Information & Metadata (From .env TEST_TOKEN_MINT)
 GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}
 
-### 8. Top 20 Holders of SPL Token
+### 8. Top Holders of SPL Token (up to 100 via getProgramAccounts, falls back to 20)
 GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/holders
+
+### 9. Token Transfer History
+GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/transfers?limit=10
+
+### 10. Invalid mint address (should return 400 cleanly)
+GET http://127.0.0.1:3000/tokens/not-a-valid-mint
