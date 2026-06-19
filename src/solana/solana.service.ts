@@ -22,26 +22,11 @@ export class SolanaService implements OnModuleInit {
       this.configService.get<string>('SOLANA_RPC_URL') ||
       clusterApiUrl(this.network as any);
     this.connection = new Connection(this.rpcUrl, 'confirmed');
-    this.logger.log(
-      `Connected to Solana: ${this.network} (${this.maskUrl(this.rpcUrl)})`,
-    );
+    this.logger.log(`Connected to Solana: ${this.network} (${this.rpcUrl})`);
   }
 
   getConnection(): Connection {
     return this.connection;
-  }
-
-  private maskUrl(url: string): string {
-    if (!url) return '';
-    try {
-      const parsed = new URL(url);
-      if (parsed.searchParams.has('api-key')) {
-        parsed.searchParams.set('api-key', '******');
-      }
-      return parsed.toString();
-    } catch {
-      return url.replace(/([?&]api-key=)[^&]+/gi, '$1******');
-    }
   }
 
   // Balance
@@ -65,7 +50,7 @@ export class SolanaService implements OnModuleInit {
 
     return {
       network: this.network,
-      rpcUrl: this.maskUrl(this.rpcUrl),
+      rpcUrl: this.rpcUrl,
       version,
       epoch: {
         epoch: epochInfo.epoch,
