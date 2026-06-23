@@ -7,64 +7,21 @@ import {
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { ConfigService } from '@nestjs/config';
 import { SolanaService } from '../solana/solana.service';
-
-// ---------------------------------------------------------------------------
-// Shared constants — all sensitive identifiers come from ConfigService/.env.
-// ---------------------------------------------------------------------------
-const SECONDS_PER_DAY = 86_400;
-const ANALYTICS_WINDOW_DAYS = 30;
-const MAX_SIGNATURES_FETCH = 1_000;
-const HIGH_ACTIVITY_THRESHOLD = 70;
-const MEDIUM_ACTIVITY_THRESHOLD = 30;
-// Denominator used to normalise raw tx count into 0-100 activity score.
-const ACTIVITY_SCORE_REFERENCE_TXS = 50;
-
-// ---------------------------------------------------------------------------
-// Interfaces
-// ---------------------------------------------------------------------------
-
-/** Single token entry inside the portfolio breakdown. */
-export interface PortfolioEntry {
-  token: string;
-  mint: string;
-  balance: number;
-  percentage: string;
-}
-
-/** Estimated gain/loss direction per SPL token. */
-export interface GainLossEntry {
-  mint: string;
-  currentBalance: number;
-  estimatedChange: 'gain' | 'flat' | 'loss';
-  note: string;
-}
-
-/** 30-day trading volume summary. */
-export interface Volume30Day {
-  transactionCount: number;
-  tradingFrequency: string;
-  estimatedFeesSOL: number;
-  periodDays: number;
-}
-
-/** Wallet age and engagement score. */
-export interface WalletAgeInfo {
-  firstSeenDate: string | null;
-  walletAgeInDays: number | null;
-  activityScore: number;
-  activityLabel: 'High' | 'Medium' | 'Low';
-}
-
-/** Full analytics response shape for GET /wallet/:address/analytics */
-export interface WalletAnalytics {
-  address: string;
-  solBalance: number;
-  totalTokens: number;
-  portfolioBreakdown: PortfolioEntry[];
-  volume30Days: Volume30Day;
-  gainsLosses: GainLossEntry[];
-  walletAge: WalletAgeInfo;
-}
+import {
+  SECONDS_PER_DAY,
+  ANALYTICS_WINDOW_DAYS,
+  MAX_SIGNATURES_FETCH,
+  HIGH_ACTIVITY_THRESHOLD,
+  MEDIUM_ACTIVITY_THRESHOLD,
+  ACTIVITY_SCORE_REFERENCE_TXS,
+} from './constants/wallet.constants';
+import {
+  PortfolioEntry,
+  GainLossEntry,
+  Volume30Day,
+  WalletAgeInfo,
+  WalletAnalytics,
+} from './interfaces/wallet-analytics.interface';
 
 /** Shape of the `info` blob returned by the parsed SPL token account data. */
 interface ParsedTokenAccountInfo {
