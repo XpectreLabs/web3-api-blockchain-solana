@@ -20,7 +20,16 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect((res) => {
+        expect(res.body).toEqual(
+          expect.objectContaining({
+            success: true,
+            message: 'Solana Blockchain API - Running',
+            version: '2.0.0',
+            framework: 'NestJS',
+          }),
+        );
+      });
   });
 
   afterEach(async () => {

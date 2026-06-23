@@ -31,7 +31,7 @@ export class NullToNotFoundInterceptor implements NestInterceptor {
         ) {
           throw new NotFoundException('Requested resource was not found');
         }
-      }),
+      }), 
     );
   }
 }
