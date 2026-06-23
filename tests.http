@@ -48,3 +48,14 @@ GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/transfers?limit=10
 
 ### 10. Invalid mint address (should return 400 cleanly)
 GET http://127.0.0.1:3000/tokens/not-a-valid-mint
+
+### ============================================
+### US-E5 — Wallet Analytics
+### ============================================
+
+### 11. Wallet analytics - full response (portfolio, 30d volume, gains/losses, wallet age)
+GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/analytics
+
+### 12. Wallet analytics - invalid address (should return 400 cleanly)
+GET http://127.0.0.1:3000/wallet/not-a-valid-address/analytics
+
