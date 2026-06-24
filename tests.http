@@ -40,5 +40,18 @@ GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&li
 ### 7. SPL Token Information & Metadata (From .env TEST_TOKEN_MINT)
 GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}
 
-### 8. Top 20 Holders of SPL Token
+### 8. Top Holders of SPL Token (up to 100 via getProgramAccounts, falls back to 20)
 GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/holders
+
+### 9. Token Transfer History
+GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/transfers?limit=10
+
+### 10. Invalid mint address (should return 400 cleanly)
+GET http://127.0.0.1:3000/tokens/not-a-valid-mint
+
+### ============================================
+### US-E5 — Wallet Analytics
+### ============================================
+
+### 11. Full Wallet Analytics (balance, portfolio, 30-day volume, gains/losses, wallet age)
+GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/analytics
