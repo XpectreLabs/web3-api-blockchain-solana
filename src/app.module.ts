@@ -7,11 +7,13 @@ import { WalletModule } from './wallet/wallet.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { TokenModule } from './token/token.module';
 import { AppController } from './app.controller';
+import { DatabaseModule } from './database/database.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    DatabaseModule,
     SolanaModule,
     WalletModule,
     TransactionModule,
