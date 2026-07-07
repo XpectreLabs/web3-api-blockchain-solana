@@ -8,6 +8,8 @@ import { GlobalExceptionFilter } from '../src/common/filters/global-exception.fi
 import { NullToNotFoundInterceptor } from '../src/common/interceptors/null-to-not-found.interceptor';
 import * as dotenv from 'dotenv';
 import * as crypto from 'crypto';
+import { AuthService } from '../src/auth/auth.service';
+import { UserTier } from '../src/auth/dto/login.dto';
 
 dotenv.config();
 
@@ -102,6 +104,8 @@ describe('TransactionController (e2e)', () => {
     }),
   };
 
+  let authToken: string;
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -121,11 +125,16 @@ describe('TransactionController (e2e)', () => {
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useGlobalInterceptors(new NullToNotFoundInterceptor());
     await app.init();
+
+    const authService = moduleFixture.get<AuthService>(AuthService);
+    const { access_token } = await authService.generateToken('testuser', UserTier.FREE);
+    authToken = access_token;
   });
 
   it('/transactions (GET) - query parameter validation missing wallet', () => {
     return request(app.getHttpServer())
       .get('/transactions')
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(400)
       .expect((res) => {
         expect(res.body.success).toBe(false);
@@ -137,6 +146,7 @@ describe('TransactionController (e2e)', () => {
   it('/transactions (GET) - query validation invalid limit', () => {
     return request(app.getHttpServer())
       .get(`/transactions?wallet=${testWallet}&limit=100`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(400)
       .expect((res) => {
         expect(res.body.success).toBe(false);
@@ -147,6 +157,7 @@ describe('TransactionController (e2e)', () => {
   it('/transactions (GET) - check transactions with sorting and pagination', async () => {
     const response = await request(app.getHttpServer())
       .get(`/transactions?wallet=${testWallet}&limit=2&offset=0&sortBy=timestamp&sortOrder=desc`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
     expect(response.body.success).toBe(true);
@@ -165,6 +176,7 @@ describe('TransactionController (e2e)', () => {
   it('/transactions (GET) - filter by type transfer', async () => {
     const response = await request(app.getHttpServer())
       .get(`/transactions?wallet=${testWallet}&limit=2&type=transfer`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
     expect(response.body.success).toBe(true);
@@ -177,6 +189,7 @@ describe('TransactionController (e2e)', () => {
   it('/transactions (GET) - sort by amount', async () => {
     const response = await request(app.getHttpServer())
       .get(`/transactions?wallet=${testWallet}&limit=2&sortBy=amount&sortOrder=asc`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
     expect(response.body.success).toBe(true);
@@ -191,6 +204,7 @@ describe('TransactionController (e2e)', () => {
   it('/transactions/:signature (GET) - detail query and 404 validation', async () => {
     const listResponse = await request(app.getHttpServer())
       .get(`/transactions?wallet=${testWallet}&limit=1`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
     const txs = listResponse.body.data.transactions;
@@ -199,6 +213,7 @@ describe('TransactionController (e2e)', () => {
 
       const detailResponse = await request(app.getHttpServer())
         .get(`/transactions/${signature}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       expect(detailResponse.body.success).toBe(true);
@@ -210,10 +225,12 @@ describe('TransactionController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/transactions/invalidSigShort')
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(400);
 
     await request(app.getHttpServer())
       .get(`/transactions/${nonExistentSig}`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(404);
   });
 

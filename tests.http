@@ -1,57 +1,92 @@
 ### ============================================
-### NestJS Solana API Tests
+### NestJS Solana API Tests (Authentication Config)
 ### ============================================
 
-### 1. General Health Check
+### Variables for Authentication
+# 1. First, call the auth login endpoints below to receive your token.
+# 2. Copy the token and paste it here:
+@authToken = YOUR_TOKEN_HERE
+
+### 1a. Authenticate - FREE Tier (100 req/min limit)
+POST http://127.0.0.1:3000/auth/login
+Content-Type: application/json
+
+{
+  "username": "free_user",
+  "tier": "free"
+}
+
+### 1b. Authenticate - PRO Tier (1000 req/min limit)
+POST http://127.0.0.1:3000/auth/login
+Content-Type: application/json
+
+{
+  "username": "pro_user",
+  "tier": "pro"
+}
+
+### ============================================
+### NestJS Solana API Endpoints
+### ============================================
+
+### 2. General Health Check (Public)
 GET http://127.0.0.1:3000/
 
-### 2. Solana Network Health Status
+### 3. Solana Network Health Status (Public)
 GET http://127.0.0.1:3000/wallet/health
 
-### 3. Check Wallet Balance (From .env TEST_WALLET_ADDRESS)
+### 4. Check Wallet Balance (Private)
 GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/balance
+Authorization: Bearer {{authToken}}
 
-### 4. Fetch Recent Wallet Transactions
+### 5. Fetch Recent Wallet Transactions (Private)
 GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/transactions?limit=5
+Authorization: Bearer {{authToken}}
 
-### ============================================
-### US-E3 — Transactions Details
-### ============================================
-
-### 5. Specific Transaction Detail (Invalid signature - should return 400/404 cleanly)
+### 6. Specific Transaction Detail (Private)
 GET http://127.0.0.1:3000/transactions/5oG4k6aJ4DYZJq1x5M5eX7d6Y5F2e9b8Z3c1A4f5E6d7
+Authorization: Bearer {{authToken}}
 
-### 6. Advanced Transactions List with Filters and Pagination
+### 7. Advanced Transactions List with Filters and Pagination (Private)
 GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&offset=0&sortBy=timestamp&sortOrder=desc
+Authorization: Bearer {{authToken}}
 
-### 6a. Filter by type (transfer)
+### 7a. Filter by type (transfer)
 GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&type=transfer
+Authorization: Bearer {{authToken}}
 
-### 6b. Filter by type (instruction)
+### 7b. Filter by type (instruction)
 GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&type=instruction
+Authorization: Bearer {{authToken}}
 
-### 6c. Sort by amount (ascending)
+### 7c. Sort by amount (ascending)
 GET http://127.0.0.1:3000/transactions?wallet={{$dotenv TEST_WALLET_ADDRESS}}&limit=5&sortBy=amount&sortOrder=asc
+Authorization: Bearer {{authToken}}
 
 ### ============================================
-### US-E4 — Token Metadata & Holders
+### US-E4 — Token Metadata & Holders (Private)
 ### ============================================
 
-### 7. SPL Token Information & Metadata (From .env TEST_TOKEN_MINT)
+### 8. SPL Token Information & Metadata (From .env TEST_TOKEN_MINT)
 GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}
+Authorization: Bearer {{authToken}}
 
-### 8. Top Holders of SPL Token (up to 100 via getProgramAccounts, falls back to 20)
+### 9. Top Holders of SPL Token
 GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/holders
+Authorization: Bearer {{authToken}}
 
-### 9. Token Transfer History
+### 10. Token Transfer History
 GET http://127.0.0.1:3000/tokens/{{$dotenv TEST_TOKEN_MINT}}/transfers?limit=10
+Authorization: Bearer {{authToken}}
 
-### 10. Invalid mint address (should return 400 cleanly)
+### 11. Invalid mint address (should return 400 cleanly)
 GET http://127.0.0.1:3000/tokens/not-a-valid-mint
+Authorization: Bearer {{authToken}}
 
 ### ============================================
-### US-E5 — Wallet Analytics
+### US-E5 — Wallet Analytics (Private)
 ### ============================================
 
-### 11. Full Wallet Analytics (balance, portfolio, 30-day volume, gains/losses, wallet age)
+### 12. Full Wallet Analytics (balance, portfolio, 30-day volume, gains/losses, wallet age)
 GET http://127.0.0.1:3000/wallet/{{$dotenv TEST_WALLET_ADDRESS}}/analytics
+Authorization: Bearer {{authToken}}
