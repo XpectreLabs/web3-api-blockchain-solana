@@ -2,7 +2,6 @@ import { SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TransactionType } from '../constants/transaction';
 
 const SYSTEM_PROGRAM_ID = SystemProgram.programId.toBase58();
-const COMPUTE_BUDGET_PROGRAM_ID = process.env.COMPUTE_BUDGET_PROGRAM_ID;
 
 export interface CompiledInstruction {
   programIdIndex: number;
@@ -79,8 +78,9 @@ export function inferTransactionType(
       continue;
     }
     const programId = typeof key === 'string' ? key : key.toBase58();
+    const computeBudgetProgramId = process.env.COMPUTE_BUDGET_PROGRAM_ID;
 
-    if (programId === COMPUTE_BUDGET_PROGRAM_ID) {
+    if (computeBudgetProgramId && programId === computeBudgetProgramId) {
       continue;
     }
 
