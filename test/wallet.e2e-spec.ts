@@ -7,6 +7,8 @@ import { SolanaService } from './../src/solana/solana.service';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 import { NullToNotFoundInterceptor } from '../src/common/interceptors/null-to-not-found.interceptor';
 import * as dotenv from 'dotenv';
+import { AuthService } from '../src/auth/auth.service';
+import { UserTier } from '../src/auth/dto/login.dto';
 
 dotenv.config();
 
@@ -47,6 +49,8 @@ describe('WalletController (e2e)', () => {
     ]),
   };
 
+  let authToken: string;
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -66,6 +70,10 @@ describe('WalletController (e2e)', () => {
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useGlobalInterceptors(new NullToNotFoundInterceptor());
     await app.init();
+
+    const authService = moduleFixture.get<AuthService>(AuthService);
+    const { access_token } = await authService.generateToken('testuser', UserTier.FREE);
+    authToken = access_token;
   });
 
   it('/wallet/health (GET)', () => {
@@ -83,6 +91,7 @@ describe('WalletController (e2e)', () => {
   it('/wallet/:address/balance (GET)', () => {
     return request(app.getHttpServer())
       .get(`/wallet/${testWallet}/balance`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200)
       .expect((res) => {
         expect(res.body.success).toBe(true);
@@ -95,6 +104,7 @@ describe('WalletController (e2e)', () => {
   it('/wallet/:address/transactions (GET)', () => {
     return request(app.getHttpServer())
       .get(`/wallet/${testWallet}/transactions?limit=2`)
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200)
       .expect((res) => {
         expect(res.body.success).toBe(true);
@@ -107,6 +117,7 @@ describe('WalletController (e2e)', () => {
   it('/wallet/:address/balance (GET) - invalid address length', () => {
     return request(app.getHttpServer())
       .get('/wallet/invalidAddressShort/balance')
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(400)
       .expect((res) => {
         expect(res.body.success).toBe(false);
