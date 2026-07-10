@@ -6,11 +6,18 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SolanaService } from '../solana/solana.service';
+import { WalletService } from './wallet.service';
+
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('wallet')
 export class WalletController {
-  constructor(private readonly solanaService: SolanaService) {}
+  constructor(
+    private readonly solanaService: SolanaService,
+    private readonly walletService: WalletService,
+  ) {}
 
+  @Public()
   @Get('health')
   async healthCheck() {
     const info = await this.solanaService.getClusterInfo();
@@ -44,9 +51,17 @@ export class WalletController {
     };
   }
 
+  @Get(':address/analytics')
+  async getWalletAnalytics(@Param('address') address: string) {
+    this.validateAddress(address);
+    const data = await this.walletService.getWalletAnalytics(address);
+    return { success: true, data };
+  }
+
   private validateAddress(address: string) {
     if (!address || address.length < 32 || address.length > 44) {
       throw new BadRequestException('Invalid Solana public address');
     }
   }
 }
+
