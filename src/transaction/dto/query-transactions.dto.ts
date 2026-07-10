@@ -1,10 +1,21 @@
-import { IsString, Length, IsOptional, IsInt, Min, Max, IsIn, IsEnum } from 'class-validator';
+import {
+  IsString,
+  Length,
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsIn,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { TransactionType } from '../../common/constants/transaction';
 
 export class QueryTransactionsDto {
   @IsString()
-  @Length(32, 44, { message: 'Wallet address must be between 32 and 44 characters' })
+  @Length(32, 44, {
+    message: 'Wallet address must be between 32 and 44 characters',
+  })
   wallet!: string;
 
   @IsOptional()

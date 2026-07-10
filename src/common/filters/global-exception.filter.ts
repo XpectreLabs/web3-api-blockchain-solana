@@ -25,12 +25,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const message =
       exception instanceof HttpException
         ? exception.getResponse()
-        : 'Internal server error';
+        : process.env.NODE_ENV === 'development' && exception instanceof Error
+          ? exception.message
+          : 'Internal server error';
 
     const errorMessage =
       typeof message === 'object' && message !== null
         ? (message as any).message || message
         : message;
+
+    // Log full stack in dev for debugging
+    if (!(exception instanceof HttpException) && exception instanceof Error) {
+      this.logger.error(`Stack: ${exception.stack}`);
+    }
 
     this.logger.error(
       `[${request.method}] ${request.url} - Status: ${status} - Error: ${JSON.stringify(errorMessage)}`,
