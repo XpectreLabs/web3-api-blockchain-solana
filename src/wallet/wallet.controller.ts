@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { SolanaService } from '../solana/solana.service';
 import { WalletService } from './wallet.service';
-
 import { Public } from '../common/decorators/public.decorator';
 
 @Controller('wallet')
@@ -64,4 +63,3 @@ export class WalletController {
     }
   }
 }
-

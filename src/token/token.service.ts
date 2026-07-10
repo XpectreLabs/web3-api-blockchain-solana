@@ -1,12 +1,52 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, ParsedAccountData } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { SolanaService } from '../solana/solana.service';
+import {
+  decodeMetadata,
+  getMetadataPda,
+  TokenMetadata,
+} from '../common/utils/metaplex.utils';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const SPL_TOKEN_ACCOUNT_SIZE = 165;
+const MAX_HOLDERS = 100;
 
 interface CacheEntry {
   data: any;
   timestamp: number;
+}
+
+/** Shape of a `spl-token` parsed token-account `info` blob. */
+interface ParsedTokenAccountInfo {
+  owner?: string;
+  tokenAmount?: { amount?: string; uiAmount?: number | null };
+}
+
+/** Shape of a `spl-token` parsed instruction `info` blob (union of variants). */
+interface SplTokenInstructionInfo {
+  mint?: string;
+  amount?: string;
+  tokenAmount?: { uiAmount?: number | null };
+  source?: string;
+  account?: string;
+  destination?: string;
+  authority?: string;
+  mintAuthority?: string;
+  multisigAuthority?: string;
+}
+
+interface ParsedInstruction {
+  program?: string;
+  parsed?: { type?: string; info: SplTokenInstructionInfo };
+}
+
+interface Holder {
+  rank: number;
+  tokenAccount: string;
+  owner: string;
+  balance: number;
+  percentage: string;
 }
 
 @Injectable()
@@ -30,6 +70,29 @@ export class TokenService {
     this.cache.set(key, { data, timestamp: Date.now() });
   }
 
+  /**
+   * Fetch the Metaplex on-chain metadata (name/symbol/uri) for a mint.
+   * Returns null when the token has no metadata account (common on devnet) or
+   * when the account can't be decoded — never throws, so a missing metadata
+   * account doesn't break the mint-info response.
+   */
+  private async fetchMetadata(
+    mintPublicKey: PublicKey,
+  ): Promise<TokenMetadata | null> {
+    try {
+      const pda = getMetadataPda(mintPublicKey);
+      const conn = this.solanaService.getConnection();
+      const account = await conn.getAccountInfo(pda);
+      if (!account?.data) return null;
+      return decodeMetadata(Buffer.from(account.data));
+    } catch (error) {
+      this.logger.warn(
+        `Could not load metadata for ${mintPublicKey.toBase58()}: ${(error as Error).message}`,
+      );
+      return null;
+    }
+  }
+
   async getTokenInfo(mintAddress: string) {
     const cacheKey = `token:${mintAddress}`;
     const cached = this.getCached(cacheKey);
@@ -41,7 +104,7 @@ export class TokenService {
 
     if (!accountInfo.value) return null;
 
-    const parsedData = accountInfo.value.data as any;
+    const parsedData = accountInfo.value.data as ParsedAccountData;
 
     if (
       !parsedData ||
@@ -52,7 +115,13 @@ export class TokenService {
       throw new BadRequestException('Not a valid SPL token mint');
     }
 
-    const mintInfo = parsedData.parsed.info;
+    const mintInfo = parsedData.parsed.info as {
+      decimals?: number;
+      supply?: string;
+      mintAuthority?: string | null;
+      freezeAuthority?: string | null;
+      isInitialized?: boolean;
+    };
     const decimals: number = mintInfo.decimals ?? 0;
     const rawSupply = BigInt(mintInfo.supply ?? '0');
     const divisor = BigInt(10 ** decimals);
@@ -61,8 +130,11 @@ export class TokenService {
         ? Number((rawSupply * 100n) / divisor) / 100
         : Number(rawSupply);
 
+    const metadata = await this.fetchMetadata(mintPublicKey);
+
     const result = {
       mintAddress,
+      metadata,
       decimals,
       supply: { raw: mintInfo.supply, formatted: formattedSupply },
       mintAuthority: mintInfo.mintAuthority ?? null,
@@ -85,57 +157,216 @@ export class TokenService {
 
     const totalSupply = Number(tokenInfo.supply.raw);
     const mintPublicKey = new PublicKey(mintAddress);
-    const conn = this.solanaService.getConnection();
 
-    const largestAccounts = await conn.getTokenLargestAccounts(mintPublicKey);
+    let holders: Holder[];
+    let source: string;
+    let note: string | undefined;
 
-    if (!largestAccounts.value || largestAccounts.value.length === 0) {
-      return {
-        mint: mintAddress,
-        totalHoldersFound: 0,
-        topCount: 0,
-        holders: [],
-        cached: false,
-      };
+    try {
+      ({ holders, source } = await this.getHoldersViaProgramAccounts(
+        mintPublicKey,
+        totalSupply,
+      ));
+    } catch (error) {
+      // Public devnet RPC frequently disables getProgramAccounts; fall back to
+      // the (max 20) largest-accounts call so the endpoint still responds.
+      this.logger.warn(
+        `getProgramAccounts failed for ${mintAddress}, falling back to largest accounts: ${(error as Error).message}`,
+      );
+      holders = await this.getHoldersViaLargestAccounts(
+        mintPublicKey,
+        totalSupply,
+      );
+      source = 'getTokenLargestAccounts';
+      note =
+        'Limited to top 20 — getProgramAccounts is disabled on this RPC endpoint';
     }
-
-    const accountPromises = largestAccounts.value.map(
-      async (acc: any, index: number) => {
-        try {
-          const accountInfo = await conn.getParsedAccountInfo(acc.address);
-          const owner =
-            (accountInfo.value?.data as any)?.parsed?.info?.owner || 'Unknown';
-
-          const balanceRaw = Number(acc.amount);
-          let percentage = 0;
-          if (totalSupply > 0) percentage = (balanceRaw / totalSupply) * 100;
-
-          return {
-            rank: index + 1,
-            tokenAccount: acc.address.toBase58(),
-            owner,
-            balance: acc.uiAmount,
-            percentage: percentage.toFixed(4) + '%',
-          };
-        } catch {
-          return null;
-        }
-      },
-    );
-
-    const resolved = await Promise.all(accountPromises);
-    const holders = resolved.filter((h: any) => h !== null);
 
     const result = {
       mint: mintAddress,
       totalHoldersFound: holders.length,
       topCount: holders.length,
+      source,
       holders,
       cached: false,
-      note: 'Limited to top 20 due to Devnet public RPC constraints',
+      ...(note ? { note } : {}),
     };
 
     this.setCached(cacheKey, result);
     return result;
+  }
+
+  /** Enumerate every token account for the mint and rank the top 100 by balance. */
+  private async getHoldersViaProgramAccounts(
+    mintPublicKey: PublicKey,
+    totalSupply: number,
+  ): Promise<{ holders: Holder[]; source: string }> {
+    const conn = this.solanaService.getConnection();
+    const accounts = await conn.getParsedProgramAccounts(TOKEN_PROGRAM_ID, {
+      filters: [
+        { dataSize: SPL_TOKEN_ACCOUNT_SIZE },
+        { memcmp: { offset: 0, bytes: mintPublicKey.toBase58() } },
+      ],
+    });
+
+    const holders = accounts
+      .map((acc) => {
+        const data = acc.account.data as ParsedAccountData;
+        const info = (data?.parsed?.info ?? {}) as ParsedTokenAccountInfo;
+        return {
+          tokenAccount: acc.pubkey.toBase58(),
+          owner: info.owner ?? 'Unknown',
+          balance: info.tokenAmount?.uiAmount ?? 0,
+          rawAmount: Number(info.tokenAmount?.amount ?? 0),
+        };
+      })
+      .filter((h) => h.rawAmount > 0)
+      .sort((a, b) => b.rawAmount - a.rawAmount)
+      .slice(0, MAX_HOLDERS)
+      .map((h, index) => ({
+        rank: index + 1,
+        tokenAccount: h.tokenAccount,
+        owner: h.owner,
+        balance: h.balance,
+        percentage: this.toPercentage(h.rawAmount, totalSupply),
+      }));
+
+    return { holders, source: 'getProgramAccounts' };
+  }
+
+  /** Fallback path: getTokenLargestAccounts caps at 20 entries. */
+  private async getHoldersViaLargestAccounts(
+    mintPublicKey: PublicKey,
+    totalSupply: number,
+  ): Promise<Holder[]> {
+    const conn = this.solanaService.getConnection();
+    const largestAccounts = await conn.getTokenLargestAccounts(mintPublicKey);
+
+    if (!largestAccounts.value?.length) return [];
+
+    const resolved = await Promise.all(
+      largestAccounts.value.map(async (acc, index): Promise<Holder | null> => {
+        try {
+          const accountInfo = await conn.getParsedAccountInfo(acc.address);
+          const data = accountInfo.value?.data as ParsedAccountData | undefined;
+          const info = (data?.parsed?.info ?? {}) as ParsedTokenAccountInfo;
+          return {
+            rank: index + 1,
+            tokenAccount: acc.address.toBase58(),
+            owner: info.owner ?? 'Unknown',
+            balance: acc.uiAmount ?? 0,
+            percentage: this.toPercentage(Number(acc.amount), totalSupply),
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    return resolved.filter((h): h is Holder => h !== null);
+  }
+
+  private toPercentage(rawAmount: number, totalSupply: number): string {
+    const pct = totalSupply > 0 ? (rawAmount / totalSupply) * 100 : 0;
+    return pct.toFixed(4) + '%';
+  }
+
+  /**
+   * Transfer history for a mint, derived from transactions that reference the
+   * mint account. Captures checked transfers/mints/burns (which carry the mint)
+   * reliably; plain unchecked transfers between token accounts may not appear,
+   * especially on public RPC — surfaced via `note`. Not cached (dynamic data).
+   */
+  async getTokenTransfers(mintAddress: string, limit = 10) {
+    const tokenInfo = await this.getTokenInfo(mintAddress);
+    if (!tokenInfo) return null;
+
+    const mintPublicKey = new PublicKey(mintAddress);
+    const conn = this.solanaService.getConnection();
+
+    // Over-fetch a little since not every signature yields a token movement.
+    const fetchCount = Math.min(limit * 3, 100);
+    const signatures = await conn.getSignaturesForAddress(mintPublicKey, {
+      limit: fetchCount,
+    });
+
+    if (!signatures.length) {
+      return { mint: mintAddress, count: 0, transfers: [] };
+    }
+
+    const parsedTxs = await conn.getParsedTransactions(
+      signatures.map((s) => s.signature),
+      { maxSupportedTransactionVersion: 0 },
+    );
+
+    const transfers: Array<Record<string, unknown>> = [];
+
+    parsedTxs.forEach((tx, i) => {
+      if (!tx) return;
+      const signature = signatures[i].signature;
+      const blockTime = tx.blockTime ?? null;
+
+      const inner =
+        tx.meta?.innerInstructions?.flatMap((ii) => ii.instructions) ?? [];
+      const instructions = [
+        ...tx.transaction.message.instructions,
+        ...inner,
+      ] as ParsedInstruction[];
+
+      for (const ix of instructions) {
+        const movement = this.parseTokenMovement(ix, mintAddress);
+        if (movement) {
+          transfers.push({
+            signature,
+            blockTime,
+            blockTimeISO: blockTime
+              ? new Date(blockTime * 1000).toISOString()
+              : null,
+            ...movement,
+          });
+        }
+      }
+    });
+
+    transfers.sort(
+      (a, b) => ((b.blockTime as number) ?? 0) - ((a.blockTime as number) ?? 0),
+    );
+
+    return {
+      mint: mintAddress,
+      count: Math.min(transfers.length, limit),
+      transfers: transfers.slice(0, limit),
+      note: 'History is built from transactions referencing the mint; unchecked transfers between token accounts may not appear on public RPC.',
+    };
+  }
+
+  /** Extract a normalized token movement from a parsed instruction, or null. */
+  private parseTokenMovement(ix: ParsedInstruction, mintAddress: string) {
+    if (ix?.program !== 'spl-token' || !ix.parsed) return null;
+
+    const { type, info } = ix.parsed;
+    const RELEVANT = [
+      'transfer',
+      'transferChecked',
+      'mintTo',
+      'mintToChecked',
+      'burn',
+      'burnChecked',
+    ];
+    if (!type || !RELEVANT.includes(type)) return null;
+
+    // Checked variants carry the mint — drop movements for other mints.
+    if (info.mint && info.mint !== mintAddress) return null;
+
+    const amount = info.tokenAmount?.uiAmount ?? info.amount ?? null;
+
+    return {
+      type,
+      amount,
+      source: info.source ?? info.account ?? null,
+      destination: info.destination ?? null,
+      authority:
+        info.authority ?? info.mintAuthority ?? info.multisigAuthority ?? null,
+    };
   }
 }

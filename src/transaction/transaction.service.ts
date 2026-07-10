@@ -52,13 +52,21 @@ export class TransactionService {
       limit: fetchCount,
     });
 
+    // Helius free tier does not allow batch JSON-RPC requests.
+    // Fetch each transaction individually to avoid 403 errors.
     const signatureList = signatures.map((sig) => sig.signature);
-    const rawTxs =
-      signatureList.length > 0
-        ? ((await conn.getTransactions(signatureList, {
-            maxSupportedTransactionVersion: 0,
-          })) as unknown as SolanaTransactionResponse[])
-        : [];
+    const rawTxs: SolanaTransactionResponse[] = [];
+    for (const sig of signatureList) {
+      try {
+        const tx = await conn.getTransaction(sig, {
+          maxSupportedTransactionVersion: 0,
+        });
+        rawTxs.push(tx as unknown as SolanaTransactionResponse);
+      } catch (err) {
+        this.logger.warn(`Failed to fetch tx ${sig}: ${(err as Error).message}`);
+        rawTxs.push(null as unknown as SolanaTransactionResponse);
+      }
+    }
 
     const transactions: TransactionSummary[] = [];
 
