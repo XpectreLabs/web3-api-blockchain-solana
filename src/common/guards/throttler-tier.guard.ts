@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerRequest } from '@nestjs/throttler';
+import {
+  RATE_LIMIT_PRO,
+  RATE_LIMIT_FREE,
+  RATE_LIMIT_TTL_MS,
+} from '../constants/rate-limit.constants';
 
 @Injectable()
 export class ThrottlerTierGuard extends ThrottlerGuard {
@@ -8,9 +13,9 @@ export class ThrottlerTierGuard extends ThrottlerGuard {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    // Apply limits: 1000 req/min for pro tier, 100 req/min for free tier
-    requestProps.limit = user?.tier === 'pro' ? 1000 : 100;
-    requestProps.ttl = 60000; // 60 seconds (1 minute)
+    // Apply tier-based limits dynamically
+    requestProps.limit = user?.tier === 'pro' ? RATE_LIMIT_PRO : RATE_LIMIT_FREE;
+    requestProps.ttl = RATE_LIMIT_TTL_MS;
 
     return super.handleRequest(requestProps);
   }
