@@ -22,11 +22,15 @@ export class SolanaService implements OnModuleInit {
       this.configService.get<string>('SOLANA_RPC_URL') ||
       clusterApiUrl(this.network as any);
     this.connection = new Connection(this.rpcUrl, 'confirmed');
-    this.logger.log(`Connected to Solana: ${this.network} (${this.rpcUrl})`);
+    this.logger.log(`Connected to Solana: ${this.network}`);
   }
 
   getConnection(): Connection {
     return this.connection;
+  }
+
+  private lamportsToSol(lamports: number | bigint): number {
+    return Number(lamports) / LAMPORTS_PER_SOL;
   }
 
   // Balance
@@ -36,7 +40,7 @@ export class SolanaService implements OnModuleInit {
     return {
       address: publicKeyStr,
       balanceLamports,
-      balanceSOL: balanceLamports / LAMPORTS_PER_SOL,
+      balanceSOL: this.lamportsToSol(balanceLamports),
     };
   }
 
@@ -59,8 +63,8 @@ export class SolanaService implements OnModuleInit {
         absoluteSlot: epochInfo.absoluteSlot,
       },
       supply: {
-        totalSOL: supply.value.total / LAMPORTS_PER_SOL,
-        circulatingSOL: supply.value.circulating / LAMPORTS_PER_SOL,
+        totalSOL: this.lamportsToSol(supply.value.total),
+        circulatingSOL: this.lamportsToSol(supply.value.circulating),
       },
     };
   }
@@ -102,7 +106,7 @@ export class SolanaService implements OnModuleInit {
           ? new Date(tx.blockTime * 1000).toISOString()
           : null,
         fee,
-        feeSOL: fee / LAMPORTS_PER_SOL,
+        feeSOL: this.lamportsToSol(fee),
         status: tx.meta?.err ? 'failed' : 'success',
         accounts: accountKeys,
       };

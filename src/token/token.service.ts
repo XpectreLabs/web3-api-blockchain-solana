@@ -8,9 +8,14 @@ import {
   TokenMetadata,
 } from '../common/utils/metaplex.utils';
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const SPL_TOKEN_ACCOUNT_SIZE = 165;
-const MAX_HOLDERS = 100;
+import {
+  TOKEN_CACHE_TTL_MS,
+  SPL_TOKEN_ACCOUNT_SIZE,
+  MAX_HOLDERS_COUNT,
+} from './constants/token.constants';
+
+const CACHE_TTL_MS = TOKEN_CACHE_TTL_MS;
+const MAX_HOLDERS = MAX_HOLDERS_COUNT;
 
 interface CacheEntry {
   data: any;
