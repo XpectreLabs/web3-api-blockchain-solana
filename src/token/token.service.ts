@@ -163,28 +163,52 @@ export class TokenService {
     const totalSupply = Number(tokenInfo.supply.raw);
     const mintPublicKey = new PublicKey(mintAddress);
 
-    let holders: Holder[];
-    let source: string;
+    let holders: Holder[] = [];
+    let source: string = 'unavailable';
     let note: string | undefined;
 
-    try {
-      ({ holders, source } = await this.getHoldersViaProgramAccounts(
-        mintPublicKey,
-        totalSupply,
-      ));
-    } catch (error) {
-      // Public devnet RPC frequently disables getProgramAccounts; fall back to
-      // the (max 20) largest-accounts call so the endpoint still responds.
-      this.logger.warn(
-        `getProgramAccounts failed for ${mintAddress}, falling back to largest accounts: ${(error as Error).message}`,
-      );
-      holders = await this.getHoldersViaLargestAccounts(
-        mintPublicKey,
-        totalSupply,
-      );
-      source = 'getTokenLargestAccounts';
-      note =
-        'Limited to top 20 — getProgramAccounts is disabled on this RPC endpoint';
+    const network = process.env.SOLANA_NETWORK ?? 'devnet';
+    const isMainnet = network === 'mainnet-beta';
+
+    if (isMainnet) {
+      // On mainnet tokens like USDC have millions of accounts.
+      // Try Helius getTokenAccounts API; if it fails on free plan, return
+      // an empty list gracefully rather than throwing a 500 error.
+      try {
+        this.logger.log(`Mainnet: using Helius API for holders of ${mintAddress}`);
+        holders = await this.getHoldersViaHeliusApi(mintAddress, totalSupply);
+        source = 'helius-api';
+      } catch (error) {
+        this.logger.warn(
+          `Helius holders API failed for ${mintAddress}: ${(error as Error).message}`,
+        );
+        holders = [];
+        source = 'unavailable';
+        note =
+          'Holder data unavailable on free RPC plan for large mainnet tokens. Upgrade to a paid Helius plan for full access.';
+      }
+    } else {
+      try {
+        ({ holders, source } = await this.getHoldersViaProgramAccounts(
+          mintPublicKey,
+          totalSupply,
+        ));
+      } catch (error) {
+        // Public devnet RPC frequently disables getProgramAccounts; fall back to
+        // the (max 20) largest-accounts call so the endpoint still responds.
+        this.logger.warn(
+          `getProgramAccounts failed for ${mintAddress}, falling back to largest accounts: ${(error as Error).message}`,
+        );
+        try {
+          holders = await this.getHoldersViaLargestAccounts(mintPublicKey, totalSupply);
+          source = 'getTokenLargestAccounts';
+          note = 'Limited to top 20 — getProgramAccounts is disabled on this RPC endpoint';
+        } catch {
+          holders = [];
+          source = 'unavailable';
+          note = 'Holder data temporarily unavailable.';
+        }
+      }
     }
 
     const result = {
@@ -201,8 +225,62 @@ export class TokenService {
     return result;
   }
 
+  /** Mainnet path: calls Helius getTokenAccounts API (handles 5M+ holder tokens). */
+  private async getHoldersViaHeliusApi(
+    mintAddress: string,
+    totalSupply: number,
+  ): Promise<Holder[]> {
+    const apiKey = (process.env.SOLANA_RPC_URL ?? '').split('api-key=')[1];
+    if (!apiKey) throw new Error('No Helius API key found in SOLANA_RPC_URL');
+
+    const url = `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'helius-holders',
+          method: 'getTokenAccounts',
+          params: {
+            page: 1,
+            limit: 20,
+            mint: mintAddress,
+            options: { showZeroBalance: false },
+          },
+        }),
+        signal: controller.signal,
+      });
+
+      const json = (await response.json()) as {
+        result?: { token_accounts: { address: string; owner: string; amount: number }[] };
+        error?: { message: string };
+      };
+
+      if (json.error) throw new Error(`Helius API error: ${json.error.message}`);
+
+      const accounts = json.result?.token_accounts ?? [];
+      accounts.sort((a, b) => b.amount - a.amount);
+      const decimals = 6; // Default for most SPL tokens (USDC, USDT)
+
+      return accounts.map((acc, index): Holder => ({
+        rank: index + 1,
+        tokenAccount: acc.address,
+        owner: acc.owner,
+        balance: acc.amount / Math.pow(10, decimals),
+        percentage: this.toPercentage(acc.amount, totalSupply),
+      }));
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
   /** Enumerate every token account for the mint and rank the top 100 by balance. */
   private async getHoldersViaProgramAccounts(
+
     mintPublicKey: PublicKey,
     totalSupply: number,
   ): Promise<{ holders: Holder[]; source: string }> {
