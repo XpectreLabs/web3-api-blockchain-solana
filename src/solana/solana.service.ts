@@ -29,19 +29,39 @@ export class SolanaService implements OnModuleInit {
     return this.connection;
   }
 
-  private lamportsToSol(lamports: number | bigint): number {
-    return Number(lamports) / LAMPORTS_PER_SOL;
+  /** Safely converts lamports (number | bigint | string | null | undefined) to SOL. */
+  private lamportsToSol(lamports: number | bigint | string | null | undefined): number {
+    const n = Number(lamports ?? 0);
+    return isFinite(n) ? n / LAMPORTS_PER_SOL : 0;
   }
 
-  // Balance
+  // In-memory balance cache with 30s TTL
+  private balanceCache = new Map<string, { lamports: number; sol: number; cachedAt: number }>();
+  private readonly BALANCE_CACHE_TTL_MS = 30_000;
+
+  // Balance — with RPC failure cache fallback
   async getBalance(publicKeyStr: string) {
-    const publicKey = new PublicKey(publicKeyStr);
-    const balanceLamports = await this.connection.getBalance(publicKey);
-    return {
-      address: publicKeyStr,
-      balanceLamports,
-      balanceSOL: this.lamportsToSol(balanceLamports),
-    };
+    try {
+      const publicKey = new PublicKey(publicKeyStr);
+      const balanceLamports = await this.connection.getBalance(publicKey);
+      const balanceSOL = this.lamportsToSol(balanceLamports);
+
+      // Store successful result in cache
+      this.balanceCache.set(publicKeyStr, { lamports: balanceLamports, sol: balanceSOL, cachedAt: Date.now() });
+
+      return { address: publicKeyStr, balanceLamports, balanceSOL };
+    } catch (error) {
+      this.logger.warn(`RPC getBalance failed for ${publicKeyStr}: ${error.message}. Attempting cached fallback.`);
+
+      const cached = this.balanceCache.get(publicKeyStr);
+      if (cached && Date.now() - cached.cachedAt < this.BALANCE_CACHE_TTL_MS) {
+        this.logger.log(`Returning cached balance for ${publicKeyStr}`);
+        return { address: publicKeyStr, balanceLamports: cached.lamports, balanceSOL: cached.sol, cached: true };
+      }
+
+      this.logger.error(`No cache available for ${publicKeyStr}. Returning safe zero balance.`);
+      return { address: publicKeyStr, balanceLamports: 0, balanceSOL: 0, cached: false };
+    }
   }
 
   // Cluster info
