@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { SolanaService } from '../solana/solana.service';
 import { WalletService } from './wallet.service';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('wallet')
 export class WalletController {
@@ -15,6 +16,7 @@ export class WalletController {
     private readonly walletService: WalletService,
   ) {}
 
+  @Public()
   @Get('health')
   async healthCheck() {
     const info = await this.solanaService.getClusterInfo();
@@ -61,4 +63,3 @@ export class WalletController {
     }
   }
 }
-
