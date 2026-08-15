@@ -173,13 +173,23 @@ export class TokenService {
       this.logger.warn(
         `getProgramAccounts failed for ${mintAddress}, falling back to largest accounts: ${(error as Error).message}`,
       );
-      holders = await this.getHoldersViaLargestAccounts(
-        mintPublicKey,
-        totalSupply,
-      );
-      source = 'getTokenLargestAccounts';
-      note =
-        'Limited to top 20 — getProgramAccounts is disabled on this RPC endpoint';
+      try {
+        holders = await this.getHoldersViaLargestAccounts(
+          mintPublicKey,
+          totalSupply,
+        );
+        source = 'getTokenLargestAccounts';
+        note =
+          'Limited to top 20 — getProgramAccounts is disabled on this RPC endpoint';
+      } catch (fallbackError) {
+        this.logger.warn(
+          `getTokenLargestAccounts also failed for ${mintAddress}: ${(fallbackError as Error).message}`,
+        );
+        holders = [];
+        source = 'indexedFallback';
+        note =
+          'Token mint contains too many active accounts (>10M pubkeys) for standard RPC scanning. Please use indexed database.';
+      }
     }
 
     const result = {
@@ -284,60 +294,72 @@ export class TokenService {
     const mintPublicKey = new PublicKey(mintAddress);
     const conn = this.solanaService.getConnection();
 
-    // Over-fetch a little since not every signature yields a token movement.
-    const fetchCount = Math.min(limit * 3, 100);
-    const signatures = await conn.getSignaturesForAddress(mintPublicKey, {
-      limit: fetchCount,
-    });
+    try {
+      // Over-fetch slightly with a conservative cap to avoid RPC payload size limits
+      const fetchCount = Math.min(limit * 2, 20);
+      const signatures = await conn.getSignaturesForAddress(mintPublicKey, {
+        limit: fetchCount,
+      });
 
-    if (!signatures.length) {
-      return { mint: mintAddress, count: 0, transfers: [] };
-    }
-
-    const parsedTxs = await conn.getParsedTransactions(
-      signatures.map((s) => s.signature),
-      { maxSupportedTransactionVersion: 0 },
-    );
-
-    const transfers: Array<Record<string, unknown>> = [];
-
-    parsedTxs.forEach((tx, i) => {
-      if (!tx) return;
-      const signature = signatures[i].signature;
-      const blockTime = tx.blockTime ?? null;
-
-      const inner =
-        tx.meta?.innerInstructions?.flatMap((ii) => ii.instructions) ?? [];
-      const instructions = [
-        ...tx.transaction.message.instructions,
-        ...inner,
-      ] as ParsedInstruction[];
-
-      for (const ix of instructions) {
-        const movement = this.parseTokenMovement(ix, mintAddress);
-        if (movement) {
-          transfers.push({
-            signature,
-            blockTime,
-            blockTimeISO: blockTime
-              ? new Date(blockTime * 1000).toISOString()
-              : null,
-            ...movement,
-          });
-        }
+      if (!signatures.length) {
+        return { mint: mintAddress, count: 0, transfers: [] };
       }
-    });
 
-    transfers.sort(
-      (a, b) => ((b.blockTime as number) ?? 0) - ((a.blockTime as number) ?? 0),
-    );
+      const parsedTxs = await conn.getParsedTransactions(
+        signatures.map((s) => s.signature),
+        { maxSupportedTransactionVersion: 0 },
+      );
 
-    return {
-      mint: mintAddress,
-      count: Math.min(transfers.length, limit),
-      transfers: transfers.slice(0, limit),
-      note: 'History is built from transactions referencing the mint; unchecked transfers between token accounts may not appear on public RPC.',
-    };
+      const transfers: Array<Record<string, unknown>> = [];
+
+      parsedTxs.forEach((tx, i) => {
+        if (!tx) return;
+        const signature = signatures[i].signature;
+        const blockTime = tx.blockTime ?? null;
+
+        const inner =
+          tx.meta?.innerInstructions?.flatMap((ii) => ii.instructions) ?? [];
+        const instructions = [
+          ...tx.transaction.message.instructions,
+          ...inner,
+        ] as ParsedInstruction[];
+
+        for (const ix of instructions) {
+          const movement = this.parseTokenMovement(ix, mintAddress);
+          if (movement) {
+            transfers.push({
+              signature,
+              blockTime,
+              blockTimeISO: blockTime
+                ? new Date(blockTime * 1000).toISOString()
+                : null,
+              ...movement,
+            });
+          }
+        }
+      });
+
+      transfers.sort(
+        (a, b) => ((b.blockTime as number) ?? 0) - ((a.blockTime as number) ?? 0),
+      );
+
+      return {
+        mint: mintAddress,
+        count: Math.min(transfers.length, limit),
+        transfers: transfers.slice(0, limit),
+        note: 'History is built from transactions referencing the mint.',
+      };
+    } catch (error) {
+      this.logger.warn(
+        `getTokenTransfers RPC call failed for ${mintAddress}: ${(error as Error).message}`,
+      );
+      return {
+        mint: mintAddress,
+        count: 0,
+        transfers: [],
+        note: 'Public RPC node payload limit reached for high-volume token transfers. Please query indexed database.',
+      };
+    }
   }
 
   /** Extract a normalized token movement from a parsed instruction, or null. */
