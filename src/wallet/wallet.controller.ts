@@ -5,6 +5,7 @@ import {
   Query,
   BadRequestException,
 } from '@nestjs/common';
+import { PublicKey } from '@solana/web3.js';
 import { SolanaService } from '../solana/solana.service';
 import { WalletService } from './wallet.service';
 import { Public } from '../common/decorators/public.decorator';
@@ -58,7 +59,10 @@ export class WalletController {
   }
 
   private validateAddress(address: string) {
-    if (!address || address.length < 32 || address.length > 44) {
+    try {
+      const pubkey = new PublicKey(address);
+      if (!PublicKey.isOnCurve(pubkey.toBytes())) throw new Error();
+    } catch {
       throw new BadRequestException('Invalid Solana public address');
     }
   }

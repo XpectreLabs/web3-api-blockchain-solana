@@ -22,22 +22,46 @@ export class SolanaService implements OnModuleInit {
       this.configService.get<string>('SOLANA_RPC_URL') ||
       clusterApiUrl(this.network as any);
     this.connection = new Connection(this.rpcUrl, 'confirmed');
-    this.logger.log(`Connected to Solana: ${this.network} (${this.rpcUrl})`);
+    this.logger.log(`Connected to Solana: ${this.network}`);
   }
 
   getConnection(): Connection {
     return this.connection;
   }
 
-  // Balance
+  /** Safely converts lamports (number | bigint | string | null | undefined) to SOL. */
+  private lamportsToSol(lamports: number | bigint | string | null | undefined): number {
+    const n = Number(lamports ?? 0);
+    return isFinite(n) ? n / LAMPORTS_PER_SOL : 0;
+  }
+
+  // In-memory balance cache with 30s TTL
+  private balanceCache = new Map<string, { lamports: number; sol: number; cachedAt: number }>();
+  private readonly BALANCE_CACHE_TTL_MS = 30_000;
+
+  // Balance — with RPC failure cache fallback
   async getBalance(publicKeyStr: string) {
-    const publicKey = new PublicKey(publicKeyStr);
-    const balanceLamports = await this.connection.getBalance(publicKey);
-    return {
-      address: publicKeyStr,
-      balanceLamports,
-      balanceSOL: balanceLamports / LAMPORTS_PER_SOL,
-    };
+    try {
+      const publicKey = new PublicKey(publicKeyStr);
+      const balanceLamports = await this.connection.getBalance(publicKey);
+      const balanceSOL = this.lamportsToSol(balanceLamports);
+
+      // Store successful result in cache
+      this.balanceCache.set(publicKeyStr, { lamports: balanceLamports, sol: balanceSOL, cachedAt: Date.now() });
+
+      return { address: publicKeyStr, balanceLamports, balanceSOL };
+    } catch (error) {
+      this.logger.warn(`RPC getBalance failed for ${publicKeyStr}: ${error.message}. Attempting cached fallback.`);
+
+      const cached = this.balanceCache.get(publicKeyStr);
+      if (cached && Date.now() - cached.cachedAt < this.BALANCE_CACHE_TTL_MS) {
+        this.logger.log(`Returning cached balance for ${publicKeyStr}`);
+        return { address: publicKeyStr, balanceLamports: cached.lamports, balanceSOL: cached.sol, cached: true };
+      }
+
+      this.logger.error(`No cache available for ${publicKeyStr}. Returning safe zero balance.`);
+      return { address: publicKeyStr, balanceLamports: 0, balanceSOL: 0, cached: false };
+    }
   }
 
   // Cluster info
@@ -59,8 +83,8 @@ export class SolanaService implements OnModuleInit {
         absoluteSlot: epochInfo.absoluteSlot,
       },
       supply: {
-        totalSOL: supply.value.total / LAMPORTS_PER_SOL,
-        circulatingSOL: supply.value.circulating / LAMPORTS_PER_SOL,
+        totalSOL: this.lamportsToSol(supply.value.total),
+        circulatingSOL: this.lamportsToSol(supply.value.circulating),
       },
     };
   }
@@ -102,7 +126,7 @@ export class SolanaService implements OnModuleInit {
           ? new Date(tx.blockTime * 1000).toISOString()
           : null,
         fee,
-        feeSOL: fee / LAMPORTS_PER_SOL,
+        feeSOL: this.lamportsToSol(fee),
         status: tx.meta?.err ? 'failed' : 'success',
         accounts: accountKeys,
       };
