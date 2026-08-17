@@ -11,18 +11,32 @@ import { HolderEntity } from './entities/holder.entity';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get<string>('DB_USERNAME'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_DATABASE'),
-        entities: [WalletEntity, TokenEntity, TransactionEntity, HolderEntity],
-        synchronize: false,
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
-        migrationsRun: true,
-      }),
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            entities: [WalletEntity, TokenEntity, TransactionEntity, HolderEntity],
+            synchronize: false,
+            migrations: [__dirname + '/migrations/*{.ts,.js}'],
+            migrationsRun: true,
+            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+          };
+        }
+        return {
+          type: 'postgres',
+          host: configService.get<string>('DB_HOST'),
+          port: configService.get<number>('DB_PORT'),
+          username: configService.get<string>('DB_USERNAME'),
+          password: configService.get<string>('DB_PASSWORD'),
+          database: configService.get<string>('DB_DATABASE'),
+          entities: [WalletEntity, TokenEntity, TransactionEntity, HolderEntity],
+          synchronize: false,
+          migrations: [__dirname + '/migrations/*{.ts,.js}'],
+          migrationsRun: true,
+        };
+      },
     }),
   ],
 })
